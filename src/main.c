@@ -2,7 +2,6 @@
 #include "game_types.h"
 #include "engine.c" 
 
-// Helper to draw a cool grid background
 void DrawCyberGrid() {
     for (int i = 0; i < SCREEN_W; i += CELL_SIZE) {
         DrawLine(i, 0, i, SCREEN_H, Fade(DARKGREEN, 0.2f));
@@ -20,49 +19,56 @@ int main() {
     state.score = 0;
     state.currentLevel = 1;
     
-    // Load the first level
+    // Default load
     LoadLevel(&state, "assets/level1.eng");
 
     while (!WindowShouldClose()) {
         // --- HOT RELOAD ---
         if (IsKeyPressed(KEY_F5)) {
-            // Reload current level based on ID
-            if (state.currentLevel == 1) LoadLevel(&state, "assets/level1.eng");
-            if (state.currentLevel == 2) LoadLevel(&state, "assets/level2.eng");
-            if (state.currentLevel == 3) LoadLevel(&state, "assets/level3.eng");
+            LoadLevel(&state, "assets/level1.eng");
         }
 
         if (!state.gameOver) {
-            // --- INPUT ---
+            // --- UPDATE LOOP ---
+            
+            // 1. Snake Input & Move
             for(int i=0; i<state.entityCount; i++) {
-                if(state.entities[i].type == ENTITY_SNAKE) {
-                    SnakeData* s = (SnakeData*)state.entities[i].data;
+                Entity* e = &state.entities[i];
+                if (!e->active) continue;
+
+                if(e->type == ENTITY_SNAKE) {
+                    SnakeData* s = (SnakeData*)e->data;
                     if (IsKeyPressed(KEY_UP) && s->direction.y == 0) s->direction = (Vector2){0, -1};
                     if (IsKeyPressed(KEY_DOWN) && s->direction.y == 0) s->direction = (Vector2){0, 1};
                     if (IsKeyPressed(KEY_LEFT) && s->direction.x == 0) s->direction = (Vector2){-1, 0};
                     if (IsKeyPressed(KEY_RIGHT) && s->direction.x == 0) s->direction = (Vector2){1, 0};
                     
                     s->moveTimer += GetFrameTime();
-                    // Speed up slightly based on level!
-                    float speed = 0.15f - (state.currentLevel * 0.02f); 
-                    if (s->moveTimer >= speed) {
+                    
+                    // USE LEVEL SPEED
+                    if (s->moveTimer >= state.levelBaseSpeed) {
                         MoveSnake(s);
-                        state.entities[i].position = s->body[0]; 
+                        e->position = s->body[0]; 
                         s->moveTimer = 0.0f;
                     }
                 }
+                
+                // 2. Enemy Move (Basic)
+                else if (e->type == ENTITY_ENEMY_BASIC) {
+                    EnemyData* en = (EnemyData*)e->data;
+                    en->moveTimer += GetFrameTime();
+                    // Simple patrol logic could go here
+                    // e->position.x += en->direction.x * en->speed;
+                }
             }
 
-            // --- ENGINE PIPELINE ---
             ResolveCollisions(&state); 
             ProcessEvents(&state);     
-            CheckLevelProgression(&state); // NEW: Check if we passed the level
+            CheckLevelProgression(&state);
         }
         else {
-            // Game Over Restart
             if (IsKeyPressed(KEY_ENTER)) {
                 state.score = 0;
-                state.currentLevel = 1;
                 LoadLevel(&state, "assets/level1.eng");
             }
         }
@@ -70,7 +76,7 @@ int main() {
         // --- RENDER ---
         BeginDrawing();
         ClearBackground(BLACK);
-        DrawCyberGrid(); // Draw the background
+        DrawCyberGrid();
 
         if (state.gameOver) {
             DrawText("SYSTEM FAILURE", 250, 200, 40, RED);
@@ -83,25 +89,28 @@ int main() {
                 if (!e->active) continue;
 
                 if (e->type == ENTITY_WALL) {
-                    DrawRectangleLines(e->position.x, e->position.y, e->size.x, e->size.y, BLUE);
-                    DrawRectangle(e->position.x+2, e->position.y+2, e->size.x-4, e->size.y-4, Fade(BLUE, 0.5f));
+                    DrawRectangleRec((Rectangle){e->position.x, e->position.y, e->size.x, e->size.y}, BLUE);
+                    DrawRectangleLinesEx((Rectangle){e->position.x, e->position.y, e->size.x, e->size.y}, 1, WHITE);
                 }
                 else if (e->type == ENTITY_APPLE) {
                      DrawRectangleV(e->position, e->size, RED);
-                     // Add a little shine
-                     DrawRectangle(e->position.x+4, e->position.y+4, 4, 4, WHITE);
+                }
+                else if (e->type == ENTITY_COIN) {
+                     DrawRectangleV(e->position, e->size, GOLD);
+                }
+                else if (e->type == ENTITY_ENEMY_BASIC) {
+                     DrawRectangleV(e->position, e->size, PURPLE);
                 }
                 else if (e->type == ENTITY_SNAKE) {
                     SnakeData* s = (SnakeData*)e->data;
                     for(int j=0; j<s->count; j++) {
-                        Color col = (j == 0) ? GREEN : DARKGREEN; // Head is brighter
+                        Color col = (j == 0) ? GREEN : DARKGREEN; 
                         DrawRectangleV(s->body[j], e->size, col);
                     }
                 }
             }
             // UI
-            DrawText(TextFormat("SCORE: %d", state.score), 10, 10, 20, GREEN);
-            DrawText(TextFormat("LEVEL: %d", state.currentLevel), 10, 35, 20, GREEN);
+            DrawText(TextFormat("SCORE: %d / %d", state.score, state.levelTargetScore), 10, 10, 20, GREEN);
         }
 
         EndDrawing();
