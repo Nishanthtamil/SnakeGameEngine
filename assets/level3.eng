@@ -1,0 +1,16 @@
+# Level 3: The Maze
+P 50 300
+A 750 300
+A 400 50
+A 400 550
+# Border
+W 0 0 800 20
+W 0 580 800 20
+W 0 0 20 600
+W 780 0 20 600
+# Horizontal Walls
+W 150 150 500 20
+W 150 450 500 20
+# Vertical Gates
+W 400 0 20 150
+W 400 450 20 150
